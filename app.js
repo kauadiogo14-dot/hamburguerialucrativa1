@@ -42,9 +42,33 @@
   $('.close').onclick = () => modal.close();
   modal.addEventListener('click',e=>{if(e.target===modal){const r=modal.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)modal.close();}});
   const prices = {basico:'10,00',premium:'27,00',promocao:'19,90'};
+  function trackedCheckoutUrl(rawUrl) {
+    const destination = new URL(rawUrl);
+    const params = new URLSearchParams();
+    const savedKeys = ['utm_source','utm_campaign','utm_medium','utm_content','utm_term','xcod','src'];
+    const clickKeys = ['fbclid','gclid','gbraid','wbraid','ttclid','msclkid','src','sck','xcod'];
+    const validValue = value => value && value !== 'null' && value !== 'undefined';
+    const isTracking = key => /^utm_[a-z0-9_]+$/i.test(key) || clickKeys.includes(key);
+
+    // Reuse only unexpired attribution saved by the official Utmify script.
+    try {
+      savedKeys.forEach(key => {
+        const value = localStorage.getItem(key);
+        const expires = Date.parse(localStorage.getItem(key + '_exp') || '');
+        if (validValue(value) && expires > Date.now()) params.set(key, value);
+      });
+    } catch {}
+
+    // Current visit takes precedence, even before the external script finishes loading.
+    new URLSearchParams(window.location.search).forEach((value, key) => {
+      if (isTracking(key) && validValue(value)) params.set(key, value);
+    });
+    params.forEach((value, key) => destination.searchParams.set(key, value));
+    return destination.href;
+  }
   function buy(plan) {
     const url = window.CHECKOUT?.[plan] || '';
-    if(/^https:\/\//i.test(url)){window.location.assign(url);return;}
+    if(/^https:\/\//i.test(url)){window.location.assign(trackedCheckoutUrl(url));return;}
     show('<p class="eyebrow">Prévia de compra</p><h2 id="mt">'+(plan==='basico'?'BÁSICO':'PREMIUM')+' · R$ '+prices[plan]+'</h2><p>O checkout deste plano ainda não foi conectado. Nenhum pagamento foi iniciado.</p><button class="btn mainBtn" data-close>Voltar à página</button>');
   }
   $('#basic').onclick=()=>show('<p class="eyebrow">Oferta no plano Básico</p><h2 id="mt">LEVE O <em>PREMIUM.</em></h2><p>Por mais R$ 9,90, troque a ficha manual pela planilha automática com aulas, estoque e todos os bônus.</p><p><del>R$ 27,00</del> &nbsp; <b>R$ 19,90 · pagamento único</b></p><button class="btn mainBtn" data-buy="promocao">Quero o Premium por R$ 19,90 ↗</button><button class="textLink" data-buy="basico">Continuar com o Básico por R$ 10,00</button>');
